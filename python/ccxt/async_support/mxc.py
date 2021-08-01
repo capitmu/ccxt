@@ -150,16 +150,16 @@ class mxc(Exchange):
                 },
             }
             result.append({
-                'id': i,
-                'symbol': base + '_' + quote,
+                'id': market['symbol'],
+                'symbol': base + '/' + quote,
                 'base': base,
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
                 'active': True,
-                'maker': market['maker_fee_rate'],
-                'taker': market['taker_fee_rate'],
+                'maker': self.safe_float(market, 'maker_fee_rate'),
+                'taker': self.safe_float(market, 'taker_fee_rate'),
                 'precision': precision,
                 'limits': limits,
             })
@@ -185,9 +185,10 @@ class mxc(Exchange):
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
+        market = self.market(symbol)
         request = {
             'depth': 5,
-            'symbol': symbol,
+            'symbol': market['id'],
             'api_key': self.apiKey,
         }
         response = await self.publicGetMarketDepth(self.extend(request, params))
@@ -209,8 +210,9 @@ class mxc(Exchange):
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=1, params={}):
         self.fetch_markets()
         periodDurationInSeconds = self.parse_timeframe(timeframe)
+        market = self.market(symbol)
         request = {
-            'symbol': symbol,
+            'symbol': market['id'],
             'interval': timeframe,
             'api_key': self.apiKey,
             'limit': limit,
@@ -250,10 +252,10 @@ class mxc(Exchange):
         symbol = None
         if market:
             symbol = market['symbol']
-        last = self.safe_float(ticker[0], 'last')
+        last = self.safe_float(ticker, 'last')
         percentage = None
-        open = self.safe_float(ticker[0], 'open')
-        change = self.safe_float(ticker[0], 'change_rate')
+        open = self.safe_float(ticker, 'open')
+        change = self.safe_float(ticker, 'change_rate')
         average = None
         if (last is not None) and (percentage is not None):
             change = last - open
@@ -262,11 +264,11 @@ class mxc(Exchange):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker[0], 'high'),
-            'low': self.safe_float(ticker[0], 'low'),
-            'bid': self.safe_float(ticker[0], 'bid'),
+            'high': self.safe_float(ticker, 'high'),
+            'low': self.safe_float(ticker, 'low'),
+            'bid': self.safe_float(ticker, 'bid'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker[0], 'ask'),
+            'ask': self.safe_float(ticker, 'ask'),
             'askVolume': None,
             'vwap': None,
             'open': open,
@@ -276,35 +278,33 @@ class mxc(Exchange):
             'change': change,
             'percentage': percentage,
             'average': average,
-            'baseVolume': self.safe_float(ticker[0], 'volume'),
+            'baseVolume': self.safe_float(ticker, 'volume'),
             'quoteVolume': None,
             'info': ticker,
         }
 
-    async def fetch_tickers(self, symbol=None, params={}):
+    async def fetch_tickers(self, symbols=None, params={}):
         request = self.extend({
-            'symbol': symbol,
             'api_key': self.apiKey,
         }, params)
         response = await self.publicGetMarketTicker(request)
         result = {}
         data = self.safe_value(response, 'data', [])
-        ids = list(data.keys())
-        for i in range(0, len(ids)):
-            id = ids[i]
-            baseId, quoteId = id.split('_')
-            base = baseId.upper()
-            quote = quoteId.upper()
-            base = self.safe_currency_code(base)
-            quote = self.safe_currency_code(quote)
-            symbol = base + '/' + quote
-            result[symbol] = self.parse_ticker(data[id], None)
-        return result
+        for i in range(0, len(data)):
+            marketId = self.safe_string(data[i], 'symbol')
+            market = self.safe_value(self.markets_by_id, marketId)
+            symbol = marketId
+            if market is not None:
+                symbol = market['symbol']
+                ticker = self.parse_ticker(data[i], market)
+                result[symbol] = ticker
+        return self.filter_by_array(result, 'symbol', symbols)
 
     async def fetch_ticker(self, symbol, params={}):
+        market = self.market(symbol)
         response = await self.publicGetMarketTicker(self.extend({
             'api_key': self.apiKey,
-            'symbol': symbol,
+            'symbol': market['id'],
         }, params))
         ticker = self.safe_value(response, 'data')
         return self.parse_ticker(ticker, None)
@@ -315,9 +315,9 @@ class mxc(Exchange):
         if dateStr is not None:
             timestamp = self.parse_date(dateStr + '  GMT+8')
         # take either of orderid or orderId
-        price = self.safe_float(trade, 'tradePrice')
-        amount = self.safe_float(trade, 'tradeQuantity')
-        type = self.safe_string(trade, 'tradeType')
+        price = self.safe_float(trade, 'trade_price')
+        amount = self.safe_float(trade, 'trade_quantity')
+        type = self.safe_string(trade, 'trade_type')
         cost = None
         if price is not None:
             if amount is not None:
@@ -333,7 +333,7 @@ class mxc(Exchange):
             'symbol': symbol,
             'order': None,
             'type': None,
-            'side': type == 'buy' if '1' else 'sell',
+            'side': 'buy' if (type == '1') else 'sell',
             'takerOrMaker': None,
             'price': price,
             'amount': amount,
@@ -345,7 +345,7 @@ class mxc(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         request = {
-            'symbol': symbol,
+            'symbol': market['id'],
             'api_key': self.apiKey,
         }
         response = await self.publicGetMarketDeals(self.extend(request, params))
@@ -356,8 +356,9 @@ class mxc(Exchange):
             raise ArgumentsRequired(self.id + ' fetchOrders() requires a symbol argument')
         defaultType = 'BID'
         type = self.safe_string(params, 'type', defaultType)
+        market = self.market(symbol)
         request = {
-            'symbol': symbol,
+            'symbol': market['id'],
             'trade_type': 'BID' if (type == 'buy') else 'ASK',
             'limit': limit,
             'api_key': self.apiKey,
@@ -473,7 +474,7 @@ class mxc(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         request = {
-            'symbol': symbol,
+            'symbol': market['id'],
             'api_key': self.apiKey,
             'req_time': self.seconds(),
         }
