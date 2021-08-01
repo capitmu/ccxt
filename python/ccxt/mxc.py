@@ -4,7 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.base.exchange import Exchange
-import math
+import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
 
@@ -16,9 +16,10 @@ class mxc(Exchange):
             'id': 'mxc',
             'name': 'MXC',
             'countries': ['CN'],
-            'version': 'v1',
+            'version': 'v2',
             'rateLimit': 1000,
             'has': {
+                'fetchCurrencies': False,
                 'CORS': False,
                 'createMarketOrder': False,
                 'fetchTickers': True,
@@ -30,34 +31,25 @@ class mxc(Exchange):
                 'fetchDepositAddress': False,
                 'fetchClosedOrders': False,
                 'fetchOHLCV': True,
-                'fetchOpenOrders': False,
+                'fetchOpenOrders': True,
                 'fetchOrderTrades': False,
                 'fetchOrders': True,
                 'fetchOrder': True,
                 'fetchMyTrades': False,
-            },
-            'timeframes': {
-                '1m': '60',
-                '5m': '300',
-                '15m': '900',
-                '30m': '1800',
-                '60m': '3600',
-                '1h': '3600',
-                '2h': '7200',
-                '4h': '14400',
-                '6h': '21600',
-                '12h': '43200',
-                '1d': '86400',
-                '1w': '604800',
+                'fetchBalance': True,
+                'fetchOrderBook': True,
+                'fetchTrades': True,
+                'createOrder': True,
+                'cancelOrder': True,
             },
             'urls': {
                 'logo': '',
                 'api': {
-                    'public': 'https://www.mxc.ceo/open/api/v1/data/',
-                    'private': 'https://www.mxc.ceo/open/api/v1/private/',
+                    'public': 'https://www.mxc.ceo/open/api/v2/',
+                    'private': 'https://www.mxc.ceo/open/api/v2/',
                 },
                 'www': 'https://mxc.ceo/',
-                'doc': 'https://github.com/mxcdevelop/APIDoc',
+                'doc': 'https://mxcdevelop.github.io/APIDoc/open.api.v2.en.html',
                 'fees': [
                     'https://www.mxc.ceo/info/fee',
                 ],
@@ -66,30 +58,36 @@ class mxc(Exchange):
             'api': {
                 'public': {
                     'get': [
-                        'markets',
-                        'markets_info',
-                        'depth',
-                        'history',
-                        'ticker',
-                        'kline',
+                        'market/ticker',
+                        'market/symbols',
+                        'market/depth',
+                        'market/kline',
+                        'market/deals',
                     ],
                 },
                 'private': {
                     'get': [
                         'account/info',
                         'current/orders',
-                        'orders',
-                        'order',
+                        'order/deals',
+                        'order/open_orders',
+                        'order/list',
+                        'order/query',
+                        'order/deal_detail',
                     ],
                     'post': [
-                        'order',
-                        'order_batch',
-                        'order_cancel',
+                        'order/place',
+                        'order/place_batch',
                     ],
                     'delete': [
-                        'order',
+                        'order/cancel',
+                        'order/cancel_by_symbol',
                     ],
                 },
+            },
+            'requiredCredentials': {
+                'apiKey': True,
+                'secret': True,
             },
             'fees': {
                 'trading': {
@@ -100,9 +98,6 @@ class mxc(Exchange):
                 },
             },
             'exceptions': {
-            },
-            # https://gate.io/api2#errCode
-            'errorCodeNames': {
             },
             'options': {
                 'limits': {
@@ -118,20 +113,16 @@ class mxc(Exchange):
         })
 
     def fetch_markets(self, params={}):
-        response = self.publicGetMarketsInfo(params)
+        response = self.publicGetMarketSymbols(self.extend({
+            'api_key': self.apiKey,
+        }, params))
         markets = self.safe_value(response, 'data')
         if not markets:
             raise ExchangeError(self.id + ' fetchMarkets got an unrecognized response')
         result = []
-        keys = list(markets.keys())
-        for i in range(0, len(keys)):
-            id = keys[i]
-            market = markets[id]
-            details = market
-            # all of their symbols are separated with an underscore
-            # but not boe_eth_eth(BOE_ETH/ETH) which has two underscores
-            # https://github.com/ccxt/ccxt/issues/4894
-            parts = id.split('_')
+        for i in range(0, len(markets)):
+            market = markets[i]
+            parts = market.symbol.split('_')
             numParts = len(parts)
             baseId = parts[0]
             quoteId = parts[1]
@@ -140,42 +131,35 @@ class mxc(Exchange):
                 quoteId = parts[2]
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
-            symbol = base + '/' + quote
             precision = {
                 'amount': 8,
-                'price': details['priceScale'],
-            }
-            amountLimits = {
-                'min': details['minAmount'],
-                'max': None,
-            }
-            priceLimits = {
-                'min': math.pow(10, -details['priceScale']),
-                'max': None,
-            }
-            defaultCost = amountLimits['min'] * priceLimits['min']
-            minCost = self.safe_float(self.options['limits']['cost']['min'], quote, defaultCost)
-            costLimits = {
-                'min': minCost,
-                'max': None,
+                'price': market.price_scale,
             }
             limits = {
-                'amount': amountLimits,
-                'price': priceLimits,
-                'cost': costLimits,
+                'amount': {
+                    'min': self.safe_float(market, 'min_amount'),
+                    'max': self.safe_float(market, 'max_amount'),
+                },
+                'price': {
+                    'min': None,
+                    'max': None,
+                },
+                'cost': {
+                    'min': None,
+                    'max': None,
+                },
             }
-            active = True
             result.append({
-                'id': id,
-                'symbol': symbol,
+                'id': i,
+                'symbol': base + '_' + quote,
                 'base': base,
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'info': market,
-                'active': active,
-                'maker': details['sellFeeRate'],
-                'taker': details['buyFeeRate'],
+                'active': True,
+                'maker': market['maker_fee_rate'],
+                'taker': market['taker_fee_rate'],
                 'precision': precision,
                 'limits': limits,
             })
@@ -185,11 +169,11 @@ class mxc(Exchange):
         self.load_markets()
         request = {
             'api_key': self.apiKey,
-            'req_time': self.milliseconds(),
+            'req_time': self.seconds(),
         }
         response = self.privateGetAccountInfo(self.extend(request, params))
         result = {'info': response}
-        currencyIds = list(response.keys())
+        currencyIds = list(response.data.keys())
         for i in range(0, len(currencyIds)):
             currencyId = currencyIds[i]
             code = self.safe_currency_code(currencyId)
@@ -203,9 +187,10 @@ class mxc(Exchange):
         self.load_markets()
         request = {
             'depth': 5,
-            'market': self.market_id(symbol),
+            'symbol': symbol,
+            'api_key': self.apiKey,
         }
-        response = self.publicGetDepth(self.extend(request, params))
+        response = self.publicGetMarketDepth(self.extend(request, params))
         orderbook = self.safe_value(response, 'data')
         return self.parse_order_book(orderbook, None, 'bids', 'asks', 'price', 'quantity')
 
@@ -218,17 +203,17 @@ class mxc(Exchange):
             float(ohlcv[3]),  # h
             float(ohlcv[4]),  # l
             float(ohlcv[5]),  # v
+            float(ohlcv[6]),  # a
         ]
 
-    def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
-        self.load_markets()
-        market = self.market(symbol)
-        now = self.milliseconds()
+    def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=1, params={}):
+        self.fetch_markets()
         periodDurationInSeconds = self.parse_timeframe(timeframe)
         request = {
-            'market': self.market_id(symbol),
+            'symbol': symbol,
             'interval': timeframe,
-            'startTime': int(now / 1000 - periodDurationInSeconds),
+            'api_key': self.apiKey,
+            'limit': limit,
         }
         # max limit = 1001
         if limit is not None:
@@ -236,27 +221,39 @@ class mxc(Exchange):
             request['range_hour'] = max(0, hours - 1)
         if since is not None:
             request['startTime'] = int(since / 1000)
-        response = self.publicGetKline(self.extend(request, params))
-        #        ordering: Ts, O, C, H, L, V
-        #     {
-        #         "code": 200,
-        #         "data": [
-        #             ["TS", "o", "c", "h", "l", "v"],
-        #         ]
-        #     }
-        #
+        response = self.publicGetMarketKline(self.extend(request, params))
+        # "data": [
+        #     [
+        #         1557728040,    #timestamp in seconds
+        #         "7054.7",      #open
+        #         "7056.26",     #close
+        #         "7056.29",     #high
+        #         "7054.16",     #low
+        #         "9.817734",    #vol
+        #         "6926.521"     #amount
+        #     ],
+        #     [
+        #         1557728100,
+        #         "7056.26",
+        #         "7042.17",
+        #         "7056.98",
+        #         "7042.16",
+        #         "23.69423",
+        #         "1677.931"
+        #     ]
+        # ]
         data = self.safe_value(response, 'data', [])
-        return self.parse_ohlcvs(data, market, timeframe, since, limit)
+        return self.parse_ohlcvs(data, None, timeframe, since, limit)
 
     def parse_ticker(self, ticker, market=None):
         timestamp = self.milliseconds()
         symbol = None
         if market:
             symbol = market['symbol']
-        last = self.safe_float(ticker, 'last')
-        percentage = self.safe_float(ticker, 'percentChange')
-        open = self.safe_float(ticker, 'open')
-        change = None
+        last = self.safe_float(ticker[0], 'last')
+        percentage = None
+        open = self.safe_float(ticker[0], 'open')
+        change = self.safe_float(ticker[0], 'change_rate')
         average = None
         if (last is not None) and (percentage is not None):
             change = last - open
@@ -265,11 +262,11 @@ class mxc(Exchange):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_float(ticker, 'high'),
-            'low': self.safe_float(ticker, 'low'),
-            'bid': self.safe_float(ticker, 'buy'),
+            'high': self.safe_float(ticker[0], 'high'),
+            'low': self.safe_float(ticker[0], 'low'),
+            'bid': self.safe_float(ticker[0], 'bid'),
             'bidVolume': None,
-            'ask': self.safe_float(ticker, 'sell'),
+            'ask': self.safe_float(ticker[0], 'ask'),
             'askVolume': None,
             'vwap': None,
             'open': open,
@@ -279,14 +276,17 @@ class mxc(Exchange):
             'change': change,
             'percentage': percentage,
             'average': average,
-            'baseVolume': self.safe_float(ticker, 'volume'),  # gateio has them reversed
+            'baseVolume': self.safe_float(ticker[0], 'volume'),
             'quoteVolume': None,
             'info': ticker,
         }
 
-    def fetch_tickers(self, symbols=None, params={}):
-        self.load_markets()
-        response = self.publicGetTicker(params)
+    def fetch_tickers(self, symbol=None, params={}):
+        request = self.extend({
+            'symbol': symbol,
+            'api_key': self.apiKey,
+        }, params)
+        response = self.publicGetMarketTicker(request)
         result = {}
         data = self.safe_value(response, 'data', [])
         ids = list(data.keys())
@@ -298,21 +298,16 @@ class mxc(Exchange):
             base = self.safe_currency_code(base)
             quote = self.safe_currency_code(quote)
             symbol = base + '/' + quote
-            market = None
-            if symbol in self.markets:
-                market = self.markets[symbol]
-            if id in self.markets_by_id:
-                market = self.markets_by_id[id]
-            result[symbol] = self.parse_ticker(data[id], market)
+            result[symbol] = self.parse_ticker(data[id], None)
         return result
 
     def fetch_ticker(self, symbol, params={}):
-        self.load_markets()
-        market = self.market(symbol)
-        ticker = self.publicGetTicker(self.extend({
-            'market': self.market_id(symbol),
+        response = self.publicGetMarketTicker(self.extend({
+            'api_key': self.apiKey,
+            'symbol': symbol,
         }, params))
-        return self.parse_ticker(ticker, market)
+        ticker = self.safe_value(response, 'data')
+        return self.parse_ticker(ticker, None)
 
     def parse_trade(self, trade, market=None):
         dateStr = self.safe_value(trade, 'tradeTime')
@@ -350,34 +345,41 @@ class mxc(Exchange):
         self.load_markets()
         market = self.market(symbol)
         request = {
-            'market': self.market_id(symbol),
+            'symbol': symbol,
+            'api_key': self.apiKey,
         }
-        response = self.publicGetHistory(self.extend(request, params))
+        response = self.publicGetMarketDeals(self.extend(request, params))
         return self.parse_trades(response['data'], market, since, limit)
 
     def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' fetchOrders() requires a symbol argument')
+        defaultType = 'BID'
+        type = self.safe_string(params, 'type', defaultType)
         request = {
+            'symbol': symbol,
+            'trade_type': 'BID' if (type == 'buy') else 'ASK',
+            'limit': limit,
             'api_key': self.apiKey,
-            'req_time': self.milliseconds(),
+            'req_time': self.seconds(),
         }
-        response = self.privateGetCurrentOrders(self.extend(request, params))
+        response = self.privateGetOrderList(self.extend(request, params))
         return self.parse_orders(response['data'], None, since, limit)
 
     def fetch_order(self, id, symbol=None, params={}):
         self.load_markets()
         request = {
-            'trade_no': id,
-            'market': self.market_id(symbol),
+            'order_ids': id,
             'api_key': self.apiKey,
-            'req_time': self.milliseconds(),
+            'req_time': self.seconds(),
         }
-        response = self.privateGetOrder(self.extend(request, params))
+        response = self.privateGetOrderQuery(self.extend(request, params))
         return self.parse_order(response['data'])
 
     def parse_order_side(self, side):
         sides = {
-            '1': 'buy',
-            '2': 'sell',
+            '1': 'BID',
+            '2': 'ASK',
         }
         return self.safe_string(sides, side, side)
 
@@ -451,18 +453,32 @@ class mxc(Exchange):
         market = self.market(symbol)
         request = {
             'api_key': self.apiKey,
-            'req_time': self.milliseconds(),
-            'market': self.market_id(symbol),
+            'req_time': self.seconds(),
+            'symbol': self.market_id(symbol),
             'price': price,
             'quantity': amount,
-            'trade_type': '1' if (side == 'buy') else '2',
+            'order_type': type.upper(),
+            'trade_type': 'BID' if (side == 'buy') else 'ASK',
         }
-        response = self.privatePostOrder(self.extend(request, params))
+        response = self.privatePostOrderPlace(self.extend(request, params))
         return self.parse_order(self.extend({
             'status': 'open',
             'type': side,
             'initialAmount': amount,
         }, response), market)
+
+    def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' fetchOpenOrders() requires a symbol argument')
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': symbol,
+            'api_key': self.apiKey,
+            'req_time': self.seconds(),
+        }
+        response = self.privateGetOrderOpenOrders(self.extend(request, params))
+        return self.parse_orders(response['data'], market, since, limit)
 
     def cancel_order(self, id, symbol=None, params={}):
         if symbol is None:
@@ -470,22 +486,23 @@ class mxc(Exchange):
         self.load_markets()
         request = {
             'api_key': self.apiKey,
-            'req_time': self.milliseconds(),
-            'market': self.market_id(symbol),
-            'trade_no': id,
+            'req_time': self.seconds(),
+            'order_ids': id,
         }
-        return self.privateDeleteOrder(self.extend(request, params))
+        return self.privateDeleteOrderCancel(self.extend(request, params))
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'][api] + self.implode_params(path, params)
-        query = self.omit(params, self.extract_params(path))
+        url2 = '/open/api/' + self.version + '/' + self.implode_params(path, params)
+        query = params
         if api == 'public':
             if query:
                 url += '?' + self.urlencode(query)
         else:
             self.check_required_credentials()
+            auth2 = method + '\n' + url2 + '\n' + self.rawencode(self.keysort(query))
             auth = self.rawencode(self.keysort(query))
-            signature = self.hash(self.encode(auth + '&api_secret=' + self.secret), 'md5')
+            signature = self.hmac(self.encode(auth2), self.encode(self.secret), hashlib.sha256)
             suffix = 'sign=' + signature
             url += '?' + auth + '&' + suffix
         return {'url': url, 'method': method, 'body': body, 'headers': headers}

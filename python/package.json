@@ -498,12 +498,10 @@
     "aofex.com",
     "AOFEX",
     "byte-trade.com",
-<<<<<<< HEAD
     "biki.com",
     "Biki",
-    "mxc.ceo",
-    "MXC"
-=======
+    "mxc.com",
+    "MXC",
     "hbtc.com",
     "HBTC",
     "probit.com",
@@ -530,8 +528,8 @@
     "Bitpanda",
     "Bitpanda Pro",
     "xena.exchange",
-    "Xena Exchange"
->>>>>>> da578b68b6579ece9768390dcad51d811b4d2345
+    "Xena Exchange",
+    "mxc.ceo"
   ],
   "collective": {
     "type": "opencollective",
