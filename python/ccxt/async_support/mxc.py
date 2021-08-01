@@ -331,7 +331,7 @@ class mxc(Exchange):
             'symbol': symbol,
             'order': None,
             'type': None,
-            'side': 'buy' if (type == '1') else 'sell',
+            'side': self.parse_order_side(type),
             'takerOrMaker': None,
             'price': price,
             'amount': amount,
@@ -369,12 +369,12 @@ class mxc(Exchange):
             'order_ids': id,
         }
         response = await self.privateGetOrderQuery(self.extend(request, params))
-        return self.parse_order(response['data'])
+        return self.parse_order(response['data'][0])
 
     def parse_order_side(self, side):
         sides = {
-            '1': 'BID',
-            '2': 'ASK',
+            'BID': 'buy',
+            'ASK': 'sell',
         }
         return self.safe_string(sides, side, side)
 

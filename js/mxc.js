@@ -352,7 +352,7 @@ module.exports = class mxc extends Exchange {
             'symbol': symbol,
             'order': undefined,
             'type': undefined,
-            'side': (type === '1') ? 'buy' : 'sell',
+            'side': this.parseOrderSide (type),
             'takerOrMaker': undefined,
             'price': price,
             'amount': amount,
@@ -394,13 +394,13 @@ module.exports = class mxc extends Exchange {
             'order_ids': id,
         };
         const response = await this.privateGetOrderQuery (this.extend (request, params));
-        return this.parseOrder (response['data']);
+        return this.parseOrder (response['data'][0]);
     }
 
     parseOrderSide (side) {
         const sides = {
-            '1': 'BID',
-            '2': 'ASK',
+            'BID': 'buy',
+            'ASK': 'sell',
         };
         return this.safeString (sides, side, side);
     }

@@ -354,7 +354,7 @@ class mxc extends Exchange {
             'symbol' => $symbol,
             'order' => null,
             'type' => null,
-            'side' => ($type === '1') ? 'buy' : 'sell',
+            'side' => $this->parse_order_side($type),
             'takerOrMaker' => null,
             'price' => $price,
             'amount' => $amount,
@@ -396,13 +396,13 @@ class mxc extends Exchange {
             'order_ids' => $id,
         );
         $response = $this->privateGetOrderQuery (array_merge($request, $params));
-        return $this->parse_order($response['data']);
+        return $this->parse_order($response['data'][0]);
     }
 
     public function parse_order_side($side) {
         $sides = array(
-            '1' => 'BID',
-            '2' => 'ASK',
+            'BID' => 'buy',
+            'ASK' => 'sell',
         );
         return $this->safe_string($sides, $side, $side);
     }
