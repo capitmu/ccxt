@@ -407,11 +407,11 @@ module.exports = class mxc extends Exchange {
 
     parseOrderStatus (status) {
         const statuses = {
-            '1': 'open',
-            '2': 'closed',
-            '3': 'open', // partial closed
-            '4': 'canceled', // partial closed
-            '5': 'canceled', // partial canceled
+            'NEW': 'open',
+            'FILLED': 'closed',
+            'PARTIALLY_FILLED': 'open', // partial closed
+            'CANCELED': 'canceled', // partial closed
+            'PARTIALLY_CANCELED': 'canceled', // partial canceled
         };
         return this.safeString (statuses, status, status);
     }
@@ -419,35 +419,21 @@ module.exports = class mxc extends Exchange {
     parseOrder (order, market = undefined) {
         // Different API endpoints returns order info in different format...
         // with different fields filled.
-        let id = this.safeString (order, 'id');
-        if (id === undefined) {
-            id = this.safeString (order, 'data');
-        }
+        const id = this.safeString (order, 'id');
         let symbol = undefined;
-        const marketId = this.safeString (order, 'market');
+        const marketId = this.safeString (order, 'symbol');
         if (marketId in this.markets_by_id) {
             market = this.markets_by_id[marketId];
         }
         if (market !== undefined) {
             symbol = market['symbol'];
         }
-        const dateStr = this.safeString (order, 'createTime');
-        // XXX: MXC returns order creation times in GMT+8 timezone with out specifying it
-        //  hence appending ' GMT+8' to it so we can get the correct value
-        // XXX: Also MXC api does not return actual matched prices and costs/fees
-        let timestamp = undefined;
-        if (dateStr !== undefined) {
-            timestamp = this.parseDate (dateStr + '  GMT+8');
-        }
-        const status = this.parseOrderStatus (this.safeString (order, 'status'));
+        const timestamp = this.safeString (order, 'create_time');
+        const status = this.parseOrderStatus (this.safeString (order, 'state'));
         const side = this.parseOrderSide (this.safeString (order, 'type'));
         const price = this.safeFloat (order, 'price');
-        let amount = this.safeFloat (order, 'totalQuantity');
-        if (amount === undefined) {
-            amount = this.safeFloat (order, 'initialAmount');
-        }
-        const filled = this.safeFloat (order, 'tradedQuantity');
-        const average = undefined;
+        const amount = this.safeFloat (order, 'quantity');
+        const filled = this.safeFloat (order, 'deal_quantity');
         let remaining = undefined;
         if ((filled !== undefined) && (amount !== undefined)) {
             remaining = amount - filled;
@@ -465,7 +451,6 @@ module.exports = class mxc extends Exchange {
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
-            'average': average,
             'trades': undefined,
             'fee': {
                 'cost': undefined,
@@ -481,7 +466,6 @@ module.exports = class mxc extends Exchange {
             throw new ExchangeError (this.id + ' allows limit orders only');
         }
         await this.loadMarkets ();
-        const market = this.market (symbol);
         const request = {
             'symbol': this.marketId (symbol),
             'price': price,
@@ -490,11 +474,15 @@ module.exports = class mxc extends Exchange {
             'trade_type': (side === 'buy') ? 'BID' : 'ASK',
         };
         const response = await this.privatePostOrderPlace (this.extend (request, params));
-        return this.parseOrder (this.extend ({
+        return this.extend ({
+            'id': this.safeString (response, 'data'),
+            'timestamp': this.milliseconds (),
             'status': 'open',
-            'type': side,
-            'initialAmount': amount,
-        }, response), market);
+            'type': 'limit',
+            'price': price,
+            'amount': amount,
+            'info': response,
+        }, request);
     }
 
     async fetchOpenOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {

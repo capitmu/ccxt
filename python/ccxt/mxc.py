@@ -380,11 +380,11 @@ class mxc(Exchange):
 
     def parse_order_status(self, status):
         statuses = {
-            '1': 'open',
-            '2': 'closed',
-            '3': 'open',  # partial closed
-            '4': 'canceled',  # partial closed
-            '5': 'canceled',  # partial canceled
+            'NEW': 'open',
+            'FILLED': 'closed',
+            'PARTIALLY_FILLED': 'open',  # partial closed
+            'CANCELED': 'canceled',  # partial closed
+            'PARTIALLY_CANCELED': 'canceled',  # partial canceled
         }
         return self.safe_string(statuses, status, status)
 
@@ -392,29 +392,18 @@ class mxc(Exchange):
         # Different API endpoints returns order info in different format...
         # with different fields filled.
         id = self.safe_string(order, 'id')
-        if id is None:
-            id = self.safe_string(order, 'data')
         symbol = None
-        marketId = self.safe_string(order, 'market')
+        marketId = self.safe_string(order, 'symbol')
         if marketId in self.markets_by_id:
             market = self.markets_by_id[marketId]
         if market is not None:
             symbol = market['symbol']
-        dateStr = self.safe_string(order, 'createTime')
-        # XXX: MXC returns order creation times in GMT+8 timezone with out specifying it
-        #  hence appending ' GMT+8' to it so we can get the correct value
-        # XXX: Also MXC api does not return actual matched prices and costs/fees
-        timestamp = None
-        if dateStr is not None:
-            timestamp = self.parse_date(dateStr + '  GMT+8')
-        status = self.parse_order_status(self.safe_string(order, 'status'))
+        timestamp = self.safe_string(order, 'create_time')
+        status = self.parse_order_status(self.safe_string(order, 'state'))
         side = self.parse_order_side(self.safe_string(order, 'type'))
         price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'totalQuantity')
-        if amount is None:
-            amount = self.safe_float(order, 'initialAmount')
-        filled = self.safe_float(order, 'tradedQuantity')
-        average = None
+        amount = self.safe_float(order, 'quantity')
+        filled = self.safe_float(order, 'deal_quantity')
         remaining = None
         if (filled is not None) and (amount is not None):
             remaining = amount - filled
@@ -431,7 +420,6 @@ class mxc(Exchange):
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
-            'average': average,
             'trades': None,
             'fee': {
                 'cost': None,
@@ -445,7 +433,6 @@ class mxc(Exchange):
         if type == 'market':
             raise ExchangeError(self.id + ' allows limit orders only')
         self.load_markets()
-        market = self.market(symbol)
         request = {
             'symbol': self.market_id(symbol),
             'price': price,
@@ -454,11 +441,15 @@ class mxc(Exchange):
             'trade_type': 'BID' if (side == 'buy') else 'ASK',
         }
         response = self.privatePostOrderPlace(self.extend(request, params))
-        return self.parse_order(self.extend({
+        return self.extend({
+            'id': self.safe_string(response, 'data'),
+            'timestamp': self.milliseconds(),
             'status': 'open',
-            'type': side,
-            'initialAmount': amount,
-        }, response), market)
+            'type': 'limit',
+            'price': price,
+            'amount': amount,
+            'info': response,
+        }, request)
 
     def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         if symbol is None:

@@ -409,11 +409,11 @@ class mxc extends Exchange {
 
     public function parse_order_status($status) {
         $statuses = array(
-            '1' => 'open',
-            '2' => 'closed',
-            '3' => 'open', // partial closed
-            '4' => 'canceled', // partial closed
-            '5' => 'canceled', // partial canceled
+            'NEW' => 'open',
+            'FILLED' => 'closed',
+            'PARTIALLY_FILLED' => 'open', // partial closed
+            'CANCELED' => 'canceled', // partial closed
+            'PARTIALLY_CANCELED' => 'canceled', // partial canceled
         );
         return $this->safe_string($statuses, $status, $status);
     }
@@ -422,34 +422,20 @@ class mxc extends Exchange {
         // Different API endpoints returns $order info in different format...
         // with different fields $filled->
         $id = $this->safe_string($order, 'id');
-        if ($id === null) {
-            $id = $this->safe_string($order, 'data');
-        }
         $symbol = null;
-        $marketId = $this->safe_string($order, 'market');
+        $marketId = $this->safe_string($order, 'symbol');
         if (is_array($this->markets_by_id) && array_key_exists($marketId, $this->markets_by_id)) {
             $market = $this->markets_by_id[$marketId];
         }
         if ($market !== null) {
             $symbol = $market['symbol'];
         }
-        $dateStr = $this->safe_string($order, 'createTime');
-        // XXX => MXC returns $order creation times in GMT+8 timezone with out specifying it
-        //  hence appending ' GMT+8' to it so we can get the correct value
-        // XXX => Also MXC api does not return actual matched prices and costs/fees
-        $timestamp = null;
-        if ($dateStr !== null) {
-            $timestamp = $this->parse_date($dateStr . '  GMT+8');
-        }
-        $status = $this->parse_order_status($this->safe_string($order, 'status'));
+        $timestamp = $this->safe_string($order, 'create_time');
+        $status = $this->parse_order_status($this->safe_string($order, 'state'));
         $side = $this->parse_order_side($this->safe_string($order, 'type'));
         $price = $this->safe_float($order, 'price');
-        $amount = $this->safe_float($order, 'totalQuantity');
-        if ($amount === null) {
-            $amount = $this->safe_float($order, 'initialAmount');
-        }
-        $filled = $this->safe_float($order, 'tradedQuantity');
-        $average = null;
+        $amount = $this->safe_float($order, 'quantity');
+        $filled = $this->safe_float($order, 'deal_quantity');
         $remaining = null;
         if (($filled !== null) && ($amount !== null)) {
             $remaining = $amount - $filled;
@@ -467,7 +453,6 @@ class mxc extends Exchange {
             'amount' => $amount,
             'filled' => $filled,
             'remaining' => $remaining,
-            'average' => $average,
             'trades' => null,
             'fee' => array(
                 'cost' => null,
@@ -483,7 +468,6 @@ class mxc extends Exchange {
             throw new ExchangeError($this->id . ' allows limit orders only');
         }
         $this->load_markets();
-        $market = $this->market($symbol);
         $request = array(
             'symbol' => $this->market_id($symbol),
             'price' => $price,
@@ -492,11 +476,15 @@ class mxc extends Exchange {
             'trade_type' => ($side === 'buy') ? 'BID' : 'ASK',
         );
         $response = $this->privatePostOrderPlace (array_merge($request, $params));
-        return $this->parse_order(array_merge(array(
+        return array_merge(array(
+            'id' => $this->safe_string($response, 'data'),
+            'timestamp' => $this->milliseconds(),
             'status' => 'open',
-            'type' => $side,
-            'initialAmount' => $amount,
-        ), $response), $market);
+            'type' => 'limit',
+            'price' => $price,
+            'amount' => $amount,
+            'info' => $response,
+        ), $request);
     }
 
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
