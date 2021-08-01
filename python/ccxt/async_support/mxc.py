@@ -179,8 +179,8 @@ class mxc(Exchange):
             currencyId = currencyIds[i]
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            account['free'] = self.safe_float(response[currencyId], 'available')
-            account['used'] = self.safe_float(response[currencyId], 'frozen')
+            account['free'] = self.safe_float(balances[currencyId], 'available')
+            account['used'] = self.safe_float(balances[currencyId], 'frozen')
             result[code] = account
         return self.parse_balance(result)
 

@@ -182,8 +182,8 @@ module.exports = class mxc extends Exchange {
             const currencyId = currencyIds[i];
             const code = this.safeCurrencyCode (currencyId);
             const account = this.account ();
-            account['free'] = this.safeFloat (response[currencyId], 'available');
-            account['used'] = this.safeFloat (response[currencyId], 'frozen');
+            account['free'] = this.safeFloat (balances[currencyId], 'available');
+            account['used'] = this.safeFloat (balances[currencyId], 'frozen');
             result[code] = account;
         }
         return this.parseBalance (result);

@@ -184,8 +184,8 @@ class mxc extends Exchange {
             $currencyId = $currencyIds[$i];
             $code = $this->safe_currency_code($currencyId);
             $account = $this->account();
-            $account['free'] = $this->safe_float($response[$currencyId], 'available');
-            $account['used'] = $this->safe_float($response[$currencyId], 'frozen');
+            $account['free'] = $this->safe_float($balances[$currencyId], 'available');
+            $account['used'] = $this->safe_float($balances[$currencyId], 'frozen');
             $result[$code] = $account;
         }
         return $this->parse_balance($result);
