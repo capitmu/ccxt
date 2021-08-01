@@ -523,6 +523,7 @@ module.exports = class mxc extends Exchange {
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.urls['api'][api] + this.implodeParams (path, params);
+        const requestTime = this.milliseconds ().toString ();
         const query = params;
         if (api === 'public') {
             if (Object.keys (query).length) {
@@ -540,10 +541,10 @@ module.exports = class mxc extends Exchange {
                     url += '?' + toBeSigned;
                 }
             }
-            const signature = this.hmac (this.encode (toBeSigned), this.encode (this.secret), 'sha256');
+            const signature = this.hmac (this.encode (this.apiKey + requestTime + toBeSigned), this.encode (this.secret), 'sha256');
             headers = {
                 'ApiKey': this.apiKey,
-                'Request-Time': this.milliseconds ().toString (),
+                'Request-Time': requestTime,
                 'Signature': signature,
                 'Content-Type': 'application/json',
             };

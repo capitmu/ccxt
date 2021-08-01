@@ -482,6 +482,7 @@ class mxc(Exchange):
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'][api] + self.implode_params(path, params)
+        requestTime = str(self.milliseconds())
         query = params
         if api == 'public':
             if query:
@@ -496,10 +497,10 @@ class mxc(Exchange):
                 toBeSigned = self.rawencode(self.keysort(query))
                 if query:
                     url += '?' + toBeSigned
-            signature = self.hmac(self.encode(toBeSigned), self.encode(self.secret), hashlib.sha256)
+            signature = self.hmac(self.encode(self.apiKey + requestTime + toBeSigned), self.encode(self.secret), hashlib.sha256)
             headers = {
                 'ApiKey': self.apiKey,
-                'Request-Time': str(self.milliseconds()),
+                'Request-Time': requestTime,
                 'Signature': signature,
                 'Content-Type': 'application/json',
             }

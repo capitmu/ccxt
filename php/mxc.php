@@ -525,6 +525,7 @@ class mxc extends Exchange {
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
         $url = $this->urls['api'][$api] . $this->implode_params($path, $params);
+        $requestTime = (string) $this->milliseconds();
         $query = $params;
         if ($api === 'public') {
             if ($query) {
@@ -542,10 +543,10 @@ class mxc extends Exchange {
                     $url .= '?' . $toBeSigned;
                 }
             }
-            $signature = $this->hmac($this->encode($toBeSigned), $this->encode($this->secret), 'sha256');
+            $signature = $this->hmac($this->encode($this->apiKey . $requestTime . $toBeSigned), $this->encode($this->secret), 'sha256');
             $headers = array(
                 'ApiKey' => $this->apiKey,
-                'Request-Time' => (string) $this->milliseconds(),
+                'Request-Time' => $requestTime,
                 'Signature' => $signature,
                 'Content-Type' => 'application/json',
             );
