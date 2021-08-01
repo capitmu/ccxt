@@ -122,7 +122,7 @@ class mxc(Exchange):
         result = []
         for i in range(0, len(markets)):
             market = markets[i]
-            parts = market.symbol.split('_')
+            parts = market['symbol'].split('_')
             numParts = len(parts)
             baseId = parts[0]
             quoteId = parts[1]
@@ -133,7 +133,7 @@ class mxc(Exchange):
             quote = self.safe_currency_code(quoteId)
             precision = {
                 'amount': 8,
-                'price': market.price_scale,
+                'price': market['price_scale'],
             }
             limits = {
                 'amount': {

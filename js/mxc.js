@@ -122,7 +122,7 @@ module.exports = class mxc extends Exchange {
         const result = [];
         for (let i = 0; i < markets.length; i++) {
             const market = markets[i];
-            const parts = market.symbol.split ('_');
+            const parts = market['symbol'].split ('_');
             const numParts = parts.length;
             let baseId = parts[0];
             let quoteId = parts[1];
@@ -134,7 +134,7 @@ module.exports = class mxc extends Exchange {
             const quote = this.safeCurrencyCode (quoteId);
             const precision = {
                 'amount': 8,
-                'price': market.price_scale,
+                'price': market['price_scale'],
             };
             const limits = {
                 'amount': {

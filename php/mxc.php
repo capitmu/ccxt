@@ -124,7 +124,7 @@ class mxc extends Exchange {
         $result = array();
         for ($i = 0; $i < count($markets); $i++) {
             $market = $markets[$i];
-            $parts = explode('_', $market->symbol);
+            $parts = explode('_', $market['symbol']);
             $numParts = is_array($parts) ? count($parts) : 0;
             $baseId = $parts[0];
             $quoteId = $parts[1];
@@ -136,7 +136,7 @@ class mxc extends Exchange {
             $quote = $this->safe_currency_code($quoteId);
             $precision = array(
                 'amount' => 8,
-                'price' => $market->price_scale,
+                'price' => $market['price_scale'],
             );
             $limits = array(
                 'amount' => array(
