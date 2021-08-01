@@ -172,10 +172,7 @@ class mxc extends Exchange {
 
     public function fetch_balance($params = array ()) {
         $this->load_markets();
-        $request = array(
-            'api_key' => $this->apiKey,
-            'req_time' => $this->seconds(),
-        );
+        $request = array();
         $response = $this->privateGetAccountInfo (array_merge($request, $params));
         $result = array( 'info' => $response );
         $balances = $this->safe_value($response, 'data', array());
@@ -213,7 +210,7 @@ class mxc extends Exchange {
             floatval ($ohlcv[3]), // h
             floatval ($ohlcv[4]), // l
             floatval ($ohlcv[5]), // v
-            floatval ($ohlcv[6]), // a
+            // floatval ($ohlcv[6]), // a -- leaving this out as it is not in CCXT OHLCV structure
         ];
     }
 
@@ -388,8 +385,6 @@ class mxc extends Exchange {
             'symbol' => $market['id'],
             'trade_type' => ($type === 'buy') ? 'BID' : 'ASK',
             'limit' => $limit,
-            'api_key' => $this->apiKey,
-            'req_time' => $this->seconds(),
         );
         $response = $this->privateGetOrderList (array_merge($request, $params));
         return $this->parse_orders($response['data'], null, $since, $limit);
@@ -399,8 +394,6 @@ class mxc extends Exchange {
         $this->load_markets();
         $request = array(
             'order_ids' => $id,
-            'api_key' => $this->apiKey,
-            'req_time' => $this->seconds(),
         );
         $response = $this->privateGetOrderQuery (array_merge($request, $params));
         return $this->parse_order($response['data']);
@@ -492,12 +485,10 @@ class mxc extends Exchange {
         $this->load_markets();
         $market = $this->market($symbol);
         $request = array(
-            'api_key' => $this->apiKey,
-            'req_time' => $this->seconds(),
             'symbol' => $this->market_id($symbol),
             'price' => $price,
             'quantity' => $amount,
-            'order_type' => strtoupper($type),
+            'order_type' => 'LIMIT_ORDER',
             'trade_type' => ($side === 'buy') ? 'BID' : 'ASK',
         );
         $response = $this->privatePostOrderPlace (array_merge($request, $params));
@@ -516,8 +507,6 @@ class mxc extends Exchange {
         $market = $this->market($symbol);
         $request = array(
             'symbol' => $market['id'],
-            'api_key' => $this->apiKey,
-            'req_time' => $this->seconds(),
         );
         $response = $this->privateGetOrderOpenOrders (array_merge($request, $params));
         return $this->parse_orders($response['data'], $market, $since, $limit);
@@ -529,8 +518,6 @@ class mxc extends Exchange {
         }
         $this->load_markets();
         $request = array(
-            'api_key' => $this->apiKey,
-            'req_time' => $this->seconds(),
             'order_ids' => $id,
         );
         return $this->privateDeleteOrderCancel (array_merge($request, $params));
@@ -538,7 +525,6 @@ class mxc extends Exchange {
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
         $url = $this->urls['api'][$api] . $this->implode_params($path, $params);
-        $url2 = '/open/api/' . $this->version . '/' . $this->implode_params($path, $params);
         $query = $params;
         if ($api === 'public') {
             if ($query) {
@@ -546,11 +532,23 @@ class mxc extends Exchange {
             }
         } else {
             $this->check_required_credentials();
-            $auth2 = $method . '\n' . $url2 . '\n' . $this->rawencode($this->keysort($query));
-            $auth = $this->rawencode($this->keysort($query));
-            $signature = $this->hmac($this->encode($auth2), $this->encode($this->secret), 'sha256');
-            $suffix = 'sign=' . $signature;
-            $url .= '?' . $auth . '&' . $suffix;
+            $toBeSigned = '';
+            if ($method === 'POST') {
+                $body = $this->json($params);
+                $toBeSigned = $body;
+            } else {
+                $toBeSigned = $this->rawencode($this->keysort($query));
+                if ($query) {
+                    $url .= '?' . $toBeSigned;
+                }
+            }
+            $signature = $this->hmac($this->encode($toBeSigned), $this->encode($this->secret), 'sha256');
+            $headers = array(
+                'ApiKey' => $this->apiKey,
+                'Request-Time' => $this->milliseconds(),
+                'Signature' => $signature,
+                'Content-Type' => 'application/json',
+            );
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }

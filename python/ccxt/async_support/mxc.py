@@ -167,10 +167,7 @@ class mxc(Exchange):
 
     async def fetch_balance(self, params={}):
         await self.load_markets()
-        request = {
-            'api_key': self.apiKey,
-            'req_time': self.seconds(),
-        }
+        request = {}
         response = await self.privateGetAccountInfo(self.extend(request, params))
         result = {'info': response}
         balances = self.safe_value(response, 'data', {})
@@ -205,7 +202,7 @@ class mxc(Exchange):
             float(ohlcv[3]),  # h
             float(ohlcv[4]),  # l
             float(ohlcv[5]),  # v
-            float(ohlcv[6]),  # a
+            # float(ohlcv[6]),  # a -- leaving self out as it is not in CCXT OHLCV structure
         ]
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=1, params={}):
@@ -362,8 +359,6 @@ class mxc(Exchange):
             'symbol': market['id'],
             'trade_type': 'BID' if (type == 'buy') else 'ASK',
             'limit': limit,
-            'api_key': self.apiKey,
-            'req_time': self.seconds(),
         }
         response = await self.privateGetOrderList(self.extend(request, params))
         return self.parse_orders(response['data'], None, since, limit)
@@ -372,8 +367,6 @@ class mxc(Exchange):
         await self.load_markets()
         request = {
             'order_ids': id,
-            'api_key': self.apiKey,
-            'req_time': self.seconds(),
         }
         response = await self.privateGetOrderQuery(self.extend(request, params))
         return self.parse_order(response['data'])
@@ -454,12 +447,10 @@ class mxc(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         request = {
-            'api_key': self.apiKey,
-            'req_time': self.seconds(),
             'symbol': self.market_id(symbol),
             'price': price,
             'quantity': amount,
-            'order_type': type.upper(),
+            'order_type': 'LIMIT_ORDER',
             'trade_type': 'BID' if (side == 'buy') else 'ASK',
         }
         response = await self.privatePostOrderPlace(self.extend(request, params))
@@ -476,8 +467,6 @@ class mxc(Exchange):
         market = self.market(symbol)
         request = {
             'symbol': market['id'],
-            'api_key': self.apiKey,
-            'req_time': self.seconds(),
         }
         response = await self.privateGetOrderOpenOrders(self.extend(request, params))
         return self.parse_orders(response['data'], market, since, limit)
@@ -487,26 +476,33 @@ class mxc(Exchange):
             raise ArgumentsRequired(self.id + ' cancelOrder requires symbol argument')
         await self.load_markets()
         request = {
-            'api_key': self.apiKey,
-            'req_time': self.seconds(),
             'order_ids': id,
         }
         return await self.privateDeleteOrderCancel(self.extend(request, params))
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'][api] + self.implode_params(path, params)
-        url2 = '/open/api/' + self.version + '/' + self.implode_params(path, params)
         query = params
         if api == 'public':
             if query:
                 url += '?' + self.urlencode(query)
         else:
             self.check_required_credentials()
-            auth2 = method + '\n' + url2 + '\n' + self.rawencode(self.keysort(query))
-            auth = self.rawencode(self.keysort(query))
-            signature = self.hmac(self.encode(auth2), self.encode(self.secret), hashlib.sha256)
-            suffix = 'sign=' + signature
-            url += '?' + auth + '&' + suffix
+            toBeSigned = ''
+            if method == 'POST':
+                body = self.json(params)
+                toBeSigned = body
+            else:
+                toBeSigned = self.rawencode(self.keysort(query))
+                if query:
+                    url += '?' + toBeSigned
+            signature = self.hmac(self.encode(toBeSigned), self.encode(self.secret), hashlib.sha256)
+            headers = {
+                'ApiKey': self.apiKey,
+                'Request-Time': self.milliseconds(),
+                'Signature': signature,
+                'Content-Type': 'application/json',
+            }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):

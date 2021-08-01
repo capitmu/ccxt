@@ -170,10 +170,7 @@ module.exports = class mxc extends Exchange {
 
     async fetchBalance (params = {}) {
         await this.loadMarkets ();
-        const request = {
-            'api_key': this.apiKey,
-            'req_time': this.seconds (),
-        };
+        const request = {};
         const response = await this.privateGetAccountInfo (this.extend (request, params));
         const result = { 'info': response };
         const balances = this.safeValue (response, 'data', {});
@@ -211,7 +208,7 @@ module.exports = class mxc extends Exchange {
             parseFloat (ohlcv[3]), // h
             parseFloat (ohlcv[4]), // l
             parseFloat (ohlcv[5]), // v
-            parseFloat (ohlcv[6]), // a
+            // parseFloat (ohlcv[6]), // a -- leaving this out as it is not in CCXT OHLCV structure
         ];
     }
 
@@ -386,8 +383,6 @@ module.exports = class mxc extends Exchange {
             'symbol': market['id'],
             'trade_type': (type === 'buy') ? 'BID' : 'ASK',
             'limit': limit,
-            'api_key': this.apiKey,
-            'req_time': this.seconds (),
         };
         const response = await this.privateGetOrderList (this.extend (request, params));
         return this.parseOrders (response['data'], undefined, since, limit);
@@ -397,8 +392,6 @@ module.exports = class mxc extends Exchange {
         await this.loadMarkets ();
         const request = {
             'order_ids': id,
-            'api_key': this.apiKey,
-            'req_time': this.seconds (),
         };
         const response = await this.privateGetOrderQuery (this.extend (request, params));
         return this.parseOrder (response['data']);
@@ -490,12 +483,10 @@ module.exports = class mxc extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
-            'api_key': this.apiKey,
-            'req_time': this.seconds (),
             'symbol': this.marketId (symbol),
             'price': price,
             'quantity': amount,
-            'order_type': type.toUpperCase (),
+            'order_type': 'LIMIT_ORDER',
             'trade_type': (side === 'buy') ? 'BID' : 'ASK',
         };
         const response = await this.privatePostOrderPlace (this.extend (request, params));
@@ -514,8 +505,6 @@ module.exports = class mxc extends Exchange {
         const market = this.market (symbol);
         const request = {
             'symbol': market['id'],
-            'api_key': this.apiKey,
-            'req_time': this.seconds (),
         };
         const response = await this.privateGetOrderOpenOrders (this.extend (request, params));
         return this.parseOrders (response['data'], market, since, limit);
@@ -527,8 +516,6 @@ module.exports = class mxc extends Exchange {
         }
         await this.loadMarkets ();
         const request = {
-            'api_key': this.apiKey,
-            'req_time': this.seconds (),
             'order_ids': id,
         };
         return await this.privateDeleteOrderCancel (this.extend (request, params));
@@ -536,7 +523,6 @@ module.exports = class mxc extends Exchange {
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.urls['api'][api] + this.implodeParams (path, params);
-        const url2 = '/open/api/' + this.version + '/' + this.implodeParams (path, params);
         const query = params;
         if (api === 'public') {
             if (Object.keys (query).length) {
@@ -544,11 +530,23 @@ module.exports = class mxc extends Exchange {
             }
         } else {
             this.checkRequiredCredentials ();
-            const auth2 = method + '\n' + url2 + '\n' + this.rawencode (this.keysort (query));
-            const auth = this.rawencode (this.keysort (query));
-            const signature = this.hmac (this.encode (auth2), this.encode (this.secret), 'sha256');
-            const suffix = 'sign=' + signature;
-            url += '?' + auth + '&' + suffix;
+            let toBeSigned = '';
+            if (method === 'POST') {
+                body = this.json (params);
+                toBeSigned = body;
+            } else {
+                toBeSigned = this.rawencode (this.keysort (query));
+                if (Object.keys (query).length) {
+                    url += '?' + toBeSigned;
+                }
+            }
+            const signature = this.hmac (this.encode (toBeSigned), this.encode (this.secret), 'sha256');
+            headers = {
+                'ApiKey': this.apiKey,
+                'Request-Time': this.milliseconds (),
+                'Signature': signature,
+                'Content-Type': 'application/json',
+            };
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
