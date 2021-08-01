@@ -18,7 +18,7 @@ class biki(Exchange):
             'name': 'Biki',
             'countries': ['CN'],
             'version': 'v1',
-            'rateLimit': 10,
+            'rateLimit': 100,
             'has': {
                 'CORS': False,
                 'createMarketOrder': False,
