@@ -545,7 +545,7 @@ class mxc extends Exchange {
             $signature = $this->hmac($this->encode($toBeSigned), $this->encode($this->secret), 'sha256');
             $headers = array(
                 'ApiKey' => $this->apiKey,
-                'Request-Time' => $this->milliseconds(),
+                'Request-Time' => (string) $this->milliseconds(),
                 'Signature' => $signature,
                 'Content-Type' => 'application/json',
             );

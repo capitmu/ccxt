@@ -499,7 +499,7 @@ class mxc(Exchange):
             signature = self.hmac(self.encode(toBeSigned), self.encode(self.secret), hashlib.sha256)
             headers = {
                 'ApiKey': self.apiKey,
-                'Request-Time': self.milliseconds(),
+                'Request-Time': str(self.milliseconds()),
                 'Signature': signature,
                 'Content-Type': 'application/json',
             }

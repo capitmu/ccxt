@@ -543,7 +543,7 @@ module.exports = class mxc extends Exchange {
             const signature = this.hmac (this.encode (toBeSigned), this.encode (this.secret), 'sha256');
             headers = {
                 'ApiKey': this.apiKey,
-                'Request-Time': this.milliseconds (),
+                'Request-Time': this.milliseconds ().toString (),
                 'Signature': signature,
                 'Content-Type': 'application/json',
             };
