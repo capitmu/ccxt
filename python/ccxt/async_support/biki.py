@@ -292,7 +292,7 @@ class biki(Exchange):
             'symbol': symbol,
             'order': None,
             'type': None,
-            'side': type == 'buy' if '1' else 'sell',
+            'side': self.parse_order_side(type),
             'takerOrMaker': None,
             'price': price,
             'amount': amount,

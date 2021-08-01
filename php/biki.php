@@ -307,7 +307,7 @@ class biki extends Exchange {
             'symbol' => $symbol,
             'order' => null,
             'type' => null,
-            'side' => $type === '1' ? 'buy' : 'sell',
+            'side' => $this->parse_order_side($type),
             'takerOrMaker' => null,
             'price' => $price,
             'amount' => $amount,
