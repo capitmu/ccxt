@@ -173,7 +173,8 @@ class mxc(Exchange):
         }
         response = self.privateGetAccountInfo(self.extend(request, params))
         result = {'info': response}
-        currencyIds = list(response.data.keys())
+        balances = self.safe_value(response, 'data', {})
+        currencyIds = list(balances.keys())
         for i in range(0, len(currencyIds)):
             currencyId = currencyIds[i]
             code = self.safe_currency_code(currencyId)

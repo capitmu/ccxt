@@ -178,7 +178,8 @@ class mxc extends Exchange {
         );
         $response = $this->privateGetAccountInfo (array_merge($request, $params));
         $result = array( 'info' => $response );
-        $currencyIds = is_array($response->data) ? array_keys($response->data) : array();
+        $balances = $this->safe_value($response, 'data', array());
+        $currencyIds = is_array($balances) ? array_keys($balances) : array();
         for ($i = 0; $i < count($currencyIds); $i++) {
             $currencyId = $currencyIds[$i];
             $code = $this->safe_currency_code($currencyId);

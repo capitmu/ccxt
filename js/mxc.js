@@ -176,7 +176,8 @@ module.exports = class mxc extends Exchange {
         };
         const response = await this.privateGetAccountInfo (this.extend (request, params));
         const result = { 'info': response };
-        const currencyIds = Object.keys (response.data);
+        const balances = this.safeValue (response, 'data', {});
+        const currencyIds = Object.keys (balances);
         for (let i = 0; i < currencyIds.length; i++) {
             const currencyId = currencyIds[i];
             const code = this.safeCurrencyCode (currencyId);
