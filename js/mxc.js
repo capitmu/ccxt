@@ -479,6 +479,7 @@ module.exports = class mxc extends Exchange {
             'timestamp': this.milliseconds (),
             'status': 'open',
             'type': 'limit',
+            'side': side,
             'price': price,
             'amount': amount,
             'info': response,

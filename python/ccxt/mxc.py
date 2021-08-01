@@ -446,6 +446,7 @@ class mxc(Exchange):
             'timestamp': self.milliseconds(),
             'status': 'open',
             'type': 'limit',
+            'side': side,
             'price': price,
             'amount': amount,
             'info': response,
