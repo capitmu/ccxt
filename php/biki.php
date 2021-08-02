@@ -17,7 +17,7 @@ class biki extends Exchange {
             'name' => 'Biki',
             'countries' => array( 'CN' ),
             'version' => 'v1',
-            'rateLimit' => 200,
+            'rateLimit' => 1000,
             'has' => array(
                 'CORS' => false,
                 'createMarketOrder' => false,
