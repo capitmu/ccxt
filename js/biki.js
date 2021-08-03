@@ -14,7 +14,7 @@ module.exports = class biki extends Exchange {
             'name': 'Biki',
             'countries': [ 'CN' ],
             'version': 'v1',
-            'rateLimit': 1000,
+            'rateLimit': 2000,
             'has': {
                 'CORS': false,
                 'createMarketOrder': false,
