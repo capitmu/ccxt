@@ -22,6 +22,7 @@ class biki(Exchange):
             'has': {
                 'CORS': False,
                 'createMarketOrder': False,
+                'cancelAllOrders': True,
                 'fetchTickers': False,
                 'withdraw': False,
                 'fetchDeposits': False,
@@ -33,7 +34,7 @@ class biki(Exchange):
                 'fetchOHLCV': True,
                 'fetchOpenOrders': False,
                 'fetchOrderTrades': False,
-                'fetchOrders': True,
+                'fetchOrders': False,
                 'fetchOrder': True,
                 'fetchMyTrades': False,
             },
@@ -84,6 +85,7 @@ class biki(Exchange):
                         'create_order',
                         'mass_replaceV2',
                         'cancel_order',
+                        'cancel_order_all',
                     ],
                 },
             },
@@ -438,6 +440,17 @@ class biki(Exchange):
             'order_id': id,
         }
         return await self.privatePostCancelOrder(self.extend(request, params))
+
+    async def cancel_all_orders(self, symbol=None, params={}):
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' cancelAllOrders requires symbol argument')
+        await self.load_markets()
+        request = {
+            'api_key': self.apiKey,
+            'time': self.milliseconds(),
+            'symbol': self.market_id(symbol),
+        }
+        return await self.privatePostCancelOrderAll(self.extend(request, params))
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'][api] + self.implode_params(path, params)

@@ -21,6 +21,7 @@ class biki extends Exchange {
             'has' => array(
                 'CORS' => false,
                 'createMarketOrder' => false,
+                'cancelAllOrders' => true,
                 'fetchTickers' => false,
                 'withdraw' => false,
                 'fetchDeposits' => false,
@@ -32,7 +33,7 @@ class biki extends Exchange {
                 'fetchOHLCV' => true,
                 'fetchOpenOrders' => false,
                 'fetchOrderTrades' => false,
-                'fetchOrders' => true,
+                'fetchOrders' => false,
                 'fetchOrder' => true,
                 'fetchMyTrades' => false,
             ),
@@ -83,6 +84,7 @@ class biki extends Exchange {
                         'create_order',
                         'mass_replaceV2',
                         'cancel_order',
+                        'cancel_order_all',
                     ),
                 ),
             ),
@@ -470,6 +472,19 @@ class biki extends Exchange {
             'order_id' => $id,
         );
         return $this->privatePostCancelOrder (array_merge($request, $params));
+    }
+
+    public function cancel_all_orders($symbol = null, $params = array ()) {
+        if ($symbol === null) {
+            throw new ArgumentsRequired($this->id . ' cancelAllOrders requires $symbol argument');
+        }
+        $this->load_markets();
+        $request = array(
+            'api_key' => $this->apiKey,
+            'time' => $this->milliseconds(),
+            'symbol' => $this->market_id($symbol),
+        );
+        return $this->privatePostCancelOrderAll (array_merge($request, $params));
     }
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {

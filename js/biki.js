@@ -18,6 +18,7 @@ module.exports = class biki extends Exchange {
             'has': {
                 'CORS': false,
                 'createMarketOrder': false,
+                'cancelAllOrders': true,
                 'fetchTickers': false,
                 'withdraw': false,
                 'fetchDeposits': false,
@@ -29,7 +30,7 @@ module.exports = class biki extends Exchange {
                 'fetchOHLCV': true,
                 'fetchOpenOrders': false,
                 'fetchOrderTrades': false,
-                'fetchOrders': true,
+                'fetchOrders': false,
                 'fetchOrder': true,
                 'fetchMyTrades': false,
             },
@@ -80,6 +81,7 @@ module.exports = class biki extends Exchange {
                         'create_order',
                         'mass_replaceV2',
                         'cancel_order',
+                        'cancel_order_all',
                     ],
                 },
             },
@@ -467,6 +469,19 @@ module.exports = class biki extends Exchange {
             'order_id': id,
         };
         return await this.privatePostCancelOrder (this.extend (request, params));
+    }
+
+    async cancelAllOrders (symbol = undefined, params = {}) {
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' cancelAllOrders requires symbol argument');
+        }
+        await this.loadMarkets ();
+        const request = {
+            'api_key': this.apiKey,
+            'time': this.milliseconds (),
+            'symbol': this.marketId (symbol),
+        };
+        return await this.privatePostCancelOrderAll (this.extend (request, params));
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
