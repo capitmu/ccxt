@@ -45,13 +45,13 @@ class mxc(Exchange):
             'urls': {
                 'logo': '',
                 'api': {
-                    'public': 'https://www.mxc.ceo/open/api/v2/',
-                    'private': 'https://www.mxc.ceo/open/api/v2/',
+                    'public': 'https://www.mexc.com/open/api/v2/',
+                    'private': 'https://www.mexc.com/open/api/v2/',
                 },
-                'www': 'https://mxc.ceo/',
+                'www': 'https://mexc.com/',
                 'doc': 'https://mxcdevelop.github.io/APIDoc/open.api.v2.en.html',
                 'fees': [
-                    'https://www.mxc.ceo/info/fee',
+                    'https://www.mexc.com/info/fee',
                 ],
                 'referral': '',
             },
